@@ -124,10 +124,22 @@ func (f *FileFuncVisitor) handleFileList(list []*ast.Field, handleFunc func(varI
 		f.handleCompleteTypeInfo(baseTypeInfo, func(complteTypeInfo string) {
 			baseTypeInfo = complteTypeInfo
 		})
-		for _, name := range field.Names {
+		if len(field.Names) > 0 {
+			for _, name := range field.Names {
+				handleFunc(&VarInfo{
+					BaseAstInfo: BaseAstInfo{
+						Name:      name.Name,
+						RFilePath: f.RFilePath,
+						Pkg:       f.Pkg,
+					},
+					Type:     typeInfo,
+					BaseType: baseTypeInfo,
+				})
+			}
+		} else {
 			handleFunc(&VarInfo{
 				BaseAstInfo: BaseAstInfo{
-					Name:      name.Name,
+					Name:      "_",
 					RFilePath: f.RFilePath,
 					Pkg:       f.Pkg,
 				},

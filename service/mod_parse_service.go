@@ -133,7 +133,7 @@ func AppendModuleInfo(modInfo *ModuleInfo) {
 		if relDir != "" {
 			curPkg = modInfo.Path + "/" + relDir
 		}
-		fileFuncVisitor, err := ParseFileFunc(curPkg, rFilePath, path)
+		fileFuncVisitor, err := ParseSingleFile(curPkg, rFilePath, path)
 		if err != nil {
 			return err
 		}

@@ -24,8 +24,8 @@ type FileVisitInfo struct {
 	FuncInfos []*vs.FuncInfo
 }
 
-// ParseFileFunc 解析单个文件中的函数信息
-func ParseFileFunc(curPkg, rFilePath, filePath string) (*vs.FileFuncVisitor, error) {
+// ParseSingleFile 解析单个文件中的函数信息
+func ParseSingleFile(curPkg, rFilePath, filePath string) (*vs.FileFuncVisitor, error) {
 	fileSet := token.NewFileSet()
 	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
@@ -55,7 +55,8 @@ func ParseFileFunc(curPkg, rFilePath, filePath string) (*vs.FileFuncVisitor, err
 	return fileFuncVisitor, nil
 }
 
-func ParseDirFunc(dirPath string) error {
+// ParseSingleDir 匹配单个包的数据
+func ParseSingleDir(dirPath string) error {
 	fileSet := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fileSet, dirPath, func(fi os.FileInfo) bool {
 		return strings.HasSuffix(fi.Name(), ".go") && !strings.HasSuffix(fi.Name(), "_test.go")
@@ -65,6 +66,7 @@ func ParseDirFunc(dirPath string) error {
 	}
 	for pkgId, pkg := range pkgs {
 		for fileId, file := range pkg.Files {
+			//TODO 虽然可以对file做ast.Walk但是没法比较好的做module匹配&传递包名信息
 			for declId, decl := range file.Decls {
 				fmt.Printf("pkgId: %v, fileId: %v, declId: %v, decl: %v\n", pkgId, fileId, declId, decl)
 			}
@@ -73,7 +75,8 @@ func ParseDirFunc(dirPath string) error {
 	return nil
 }
 
-func ParseAllDirFunc(rootDir string) error {
+// ParseAllDirs 匹配所有目录中的函数
+func ParseAllDirs(rootDir string) error {
 	return filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -96,7 +99,7 @@ func ParseAllDirFunc(rootDir string) error {
 		}
 		if hasGoFiles {
 			// 解析当前目录作为一个包
-			if err := ParseDirFunc(path); err != nil {
+			if err := ParseSingleDir(path); err != nil {
 				fmt.Printf("解析包 %s 失败: %v\n", path, err)
 			}
 		}

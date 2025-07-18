@@ -3,6 +3,7 @@ package visitor
 import (
 	"go/ast"
 	"go/token"
+	"strings"
 )
 
 type BaseAstInfo struct {
@@ -26,6 +27,7 @@ type FileFuncVisitor struct {
 	FileFuncInfos []*FuncInfo
 	FilePkgVars   []*VarInfo
 	FileStructs   []*StructInfo
+	ImportPkgMap  map[string]string
 }
 
 type FuncInfo struct {
@@ -53,6 +55,26 @@ type StructInfo struct {
 
 func (f *FileFuncVisitor) Visit(node ast.Node) (w ast.Visitor) {
 	switch n := node.(type) {
+	case *ast.GenDecl:
+		if n.Tok == token.IMPORT {
+			for _, spec := range n.Specs {
+				if importSpec, ok := spec.(*ast.ImportSpec); ok {
+					path := importSpec.Path.Value
+					var name string
+					if importSpec.Name != nil {
+						name = importSpec.Name.Name
+					} else {
+						lastSplit := strings.LastIndex(path, "/")
+						if lastSplit > 0 {
+							name = path[lastSplit+1:]
+						} else {
+							name = path
+						}
+					}
+					f.ImportPkgMap[name] = path
+				}
+			}
+		}
 	case *ast.FuncDecl:
 		startPosition := f.FileSet.Position(n.Pos())
 		endPosition := f.FileSet.Position(n.End())
@@ -99,6 +121,9 @@ func (f *FileFuncVisitor) handleFileList(list []*ast.Field, handleFunc func(varI
 	for _, field := range list {
 		typeInfo := f.parseExprTypeInfo(field.Type)
 		baseTypeInfo := f.parseExprBaseType(field.Type)
+		f.handleCompleteTypeInfo(baseTypeInfo, func(complteTypeInfo string) {
+			baseTypeInfo = complteTypeInfo
+		})
 		for _, name := range field.Names {
 			handleFunc(&VarInfo{
 				BaseAstInfo: BaseAstInfo{
@@ -111,6 +136,20 @@ func (f *FileFuncVisitor) handleFileList(list []*ast.Field, handleFunc func(varI
 			})
 		}
 	}
+}
+
+func (f *FileFuncVisitor) handleCompleteTypeInfo(typeInfo string, handleFunc func(complteTypeInfo string)) {
+	if typeInfo == "" {
+		return
+	}
+	lastSplit := strings.LastIndex(typeInfo, ".")
+	if lastSplit > 0 {
+		basePkg := typeInfo[:lastSplit]
+		if basePkgPath, ok := f.ImportPkgMap[basePkg]; ok {
+			typeInfo = basePkgPath + typeInfo[lastSplit:]
+		}
+	}
+	handleFunc(typeInfo)
 }
 
 func (f *FileFuncVisitor) parseExprTypeInfo(expr ast.Expr) string {
@@ -139,7 +178,7 @@ func (f *FileFuncVisitor) parseExprBaseType(expr ast.Expr) string {
 	case *ast.StarExpr:
 		return f.parseExprBaseType(n.X)
 	case *ast.SelectorExpr:
-		return f.parseExprBaseType(n.X)
+		return f.parseExprBaseType(n.X) + "." + n.Sel.Name
 	case *ast.ArrayType:
 		return f.parseExprBaseType(n.Elt)
 	case *ast.MapType:

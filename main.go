@@ -8,7 +8,7 @@ import (
 
 func main() {
 	// 需要先导入 service 包
-	funcInfos, err := service.ParseFileFunc("./visitor/file_func_visitor.go")
+	funcInfos, err := service.ParseFileFunc("./service/ast_parse_service.go")
 	if err != nil {
 		panic(err)
 	}

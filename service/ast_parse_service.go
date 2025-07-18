@@ -25,9 +25,10 @@ func ParseFileFunc(filePath string) ([]*visitor.FuncInfo, error) {
 			Pkg:       "one",
 			Name:      "xxx",
 		},
-		FileSet:   fileSet,
-		File:      file,
-		FileBytes: fileBytes,
+		FileSet:      fileSet,
+		File:         file,
+		FileBytes:    fileBytes,
+		ImportPkgMap: make(map[string]string),
 	}
 	ast.Walk(fileFuncVisitor, file)
 	return fileFuncVisitor.FileFuncInfos, nil

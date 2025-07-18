@@ -1,14 +1,13 @@
 package service
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
 	"sort"
 
-	"github.com/Silhouette-sophist/static_parser/visitor"
+	vs "github.com/Silhouette-sophist/static_parser/visitor"
 )
 
 const (
@@ -19,10 +18,10 @@ var fvi = FileVisitInfo{}
 
 type FileVisitInfo struct {
 	FilePath  string
-	FuncInfos []*visitor.FuncInfo
+	FuncInfos []*vs.FuncInfo
 }
 
-func ParseFileFunc(filePath string) ([]*visitor.FuncInfo, error) {
+func ParseFileFunc(filePath string) ([]*vs.FuncInfo, error) {
 	fileSet := token.NewFileSet()
 	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
@@ -32,8 +31,8 @@ func ParseFileFunc(filePath string) ([]*visitor.FuncInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	fileFuncVisitor := &visitor.FileFuncVisitor{
-		BaseAstInfo: visitor.BaseAstInfo{
+	fileFuncVisitor := &vs.FileFuncVisitor{
+		BaseAstInfo: vs.BaseAstInfo{
 			RFilePath: filePath,
 			Pkg:       "one",
 			Name:      "xxx",
@@ -46,9 +45,6 @@ func ParseFileFunc(filePath string) ([]*visitor.FuncInfo, error) {
 	}
 	ast.Walk(fileFuncVisitor, file)
 	sort.Slice(fileFuncVisitor.FileFuncInfos, func(i, j int) bool {
-		go func() {
-			fmt.Println("xxxx")
-		}()
 		return fileFuncVisitor.FileFuncInfos[i].StartPosition.OffSet < fileFuncVisitor.FileFuncInfos[j].StartPosition.OffSet
 	})
 	return fileFuncVisitor.FileFuncInfos, nil

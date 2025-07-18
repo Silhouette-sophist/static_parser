@@ -24,6 +24,7 @@ type FileVisitInfo struct {
 	FuncInfos []*vs.FuncInfo
 }
 
+// ParseFileFunc 解析单个文件中的函数信息
 func ParseFileFunc(curPkg, rFilePath, filePath string) (*vs.FileFuncVisitor, error) {
 	fileSet := token.NewFileSet()
 	fileBytes, err := os.ReadFile(filePath)

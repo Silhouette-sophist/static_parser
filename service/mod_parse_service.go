@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	vs "github.com/Silhouette-sophist/static_parser/visitor"
 	"golang.org/x/mod/modfile"
@@ -45,6 +46,7 @@ type ReplaceRule struct {
 	NewVersion string // 新版本
 }
 
+// ParseRepo 匹配仓库信息
 func ParseRepo(repoPath string) ([]*ModuleInfo, error) {
 	modules, err := FindAllModules(repoPath)
 	if err != nil {
@@ -53,8 +55,12 @@ func ParseRepo(repoPath string) ([]*ModuleInfo, error) {
 	return modules, nil
 }
 
-// 解析单个go.mod文件
+// ParseModule 解析单个go.mod文件
 func ParseModule(dir string) (*ModuleInfo, error) {
+	start := time.Now()
+	defer func() {
+		fmt.Printf("ParseModule dir:%s cost: %v\n", dir, time.Since(start))
+	}()
 	info := &ModuleInfo{
 		Dir:          dir,
 		PkgFuncMap:   make(map[string][]*vs.FuncInfo),
@@ -78,7 +84,7 @@ func ParseModule(dir string) (*ModuleInfo, error) {
 		info.GoVersion = modeFile.Go.Version
 	}
 	// TODO 匹配mod文件中内容
-	ParseModuleInfo(info)
+	AppendModuleInfo(info)
 	// 解析依赖
 	for _, req := range modeFile.Require {
 		info.Requires = append(info.Requires, Dependency{
@@ -105,7 +111,8 @@ func ParseModule(dir string) (*ModuleInfo, error) {
 	return info, nil
 }
 
-func ParseModuleInfo(modInfo *ModuleInfo) {
+// AppendModuleInfo 解析模块中的所有.go文件
+func AppendModuleInfo(modInfo *ModuleInfo) {
 	// TODO 匹配mod文件中内容
 	filepath.Walk(modInfo.Dir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {

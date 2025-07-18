@@ -13,6 +13,6 @@ func main() {
 		panic(err)
 	}
 	for _, funcInfo := range funcInfos {
-		fmt.Println(funcInfo.Name)
+		fmt.Println(funcInfo)
 	}
 }

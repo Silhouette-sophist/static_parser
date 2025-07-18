@@ -134,6 +134,8 @@ func (f *FileFuncVisitor) parseExprTypeInfo(expr ast.Expr) string {
 
 func (f *FileFuncVisitor) parseExprBaseType(expr ast.Expr) string {
 	switch n := expr.(type) {
+	case *ast.Ident:
+		return n.Name
 	case *ast.StarExpr:
 		return f.parseExprBaseType(n.X)
 	case *ast.SelectorExpr:

@@ -128,6 +128,11 @@ func (f *FileFuncVisitor) Visit(node ast.Node) (w ast.Visitor) {
 							Column:    endPosition.Column,
 						},
 					}
+					if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+						f.handleFileList(structType.Fields.List, func(varInfo *VarInfo) {
+							structInfo.Fields = append(structInfo.Fields, varInfo)
+						})
+					}
 					f.FileStructs = append(f.FileStructs, structInfo)
 				}
 			}

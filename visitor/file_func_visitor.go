@@ -59,7 +59,7 @@ func (f *FileFuncVisitor) Visit(node ast.Node) (w ast.Visitor) {
 		if n.Tok == token.IMPORT {
 			for _, spec := range n.Specs {
 				if importSpec, ok := spec.(*ast.ImportSpec); ok {
-					path := importSpec.Path.Value
+					path := strings.Trim(importSpec.Path.Value, `"`)
 					var name string
 					if importSpec.Name != nil {
 						name = importSpec.Name.Name
@@ -119,11 +119,13 @@ func (f *FileFuncVisitor) Visit(node ast.Node) (w ast.Visitor) {
 
 func (f *FileFuncVisitor) handleFileList(list []*ast.Field, handleFunc func(varInfo *VarInfo)) {
 	for _, field := range list {
-		typeInfo := f.parseExprTypeInfo(field.Type)
 		baseTypeInfo := f.parseExprBaseType(field.Type)
+		rawBaseTypeInfo := baseTypeInfo
 		f.handleCompleteTypeInfo(baseTypeInfo, func(complteTypeInfo string) {
 			baseTypeInfo = complteTypeInfo
 		})
+		typeInfo := f.parseExprTypeInfo(field.Type)
+		typeInfo = strings.Replace(typeInfo, rawBaseTypeInfo, baseTypeInfo, -1)
 		if len(field.Names) > 0 {
 			for _, name := range field.Names {
 				handleFunc(&VarInfo{

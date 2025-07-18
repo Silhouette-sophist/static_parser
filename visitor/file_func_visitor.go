@@ -1,15 +1,24 @@
 package visitor
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"strings"
 )
 
+type PkgStaticInfo struct {
+	Pkg             string
+	FileFuncInfoMap map[string][]*FuncInfo
+	FilePkgVarMap   map[string][]*VarInfo
+	FileStructMap   map[string][]*StructInfo
+}
+
 type BaseAstInfo struct {
 	Pkg       string
 	RFilePath string
 	Name      string
+	Content   string
 }
 
 type BaseAstPosition struct {
@@ -37,6 +46,7 @@ type FuncInfo struct {
 	Results       []*VarInfo
 	StartPosition *BaseAstPosition
 	EndPosition   *BaseAstPosition
+	ChildCounts   int
 }
 
 type VarInfo struct {
@@ -56,6 +66,7 @@ type StructInfo struct {
 func (f *FileFuncVisitor) Visit(node ast.Node) (w ast.Visitor) {
 	switch n := node.(type) {
 	case *ast.GenDecl:
+		// 1.导入声明
 		if n.Tok == token.IMPORT {
 			for _, spec := range n.Specs {
 				if importSpec, ok := spec.(*ast.ImportSpec); ok {
@@ -74,47 +85,147 @@ func (f *FileFuncVisitor) Visit(node ast.Node) (w ast.Visitor) {
 					f.ImportPkgMap[name] = path
 				}
 			}
+			// 2.包常量和变量声明
+		} else if n.Tok == token.CONST || n.Tok == token.VAR {
+			for _, spec := range n.Specs {
+				if valueSpec, ok := spec.(*ast.ValueSpec); ok {
+					for i, name := range valueSpec.Names {
+						varInfo := &VarInfo{
+							BaseAstInfo: BaseAstInfo{
+								Name:      name.Name,
+								RFilePath: f.RFilePath,
+								Pkg:       f.Pkg,
+								Content:   string(f.FileBytes[valueSpec.Pos()-1 : valueSpec.End()-1]),
+							},
+							Type: f.parseExprTypeInfo(valueSpec.Values[i]),
+						}
+						f.FilePkgVars = append(f.FilePkgVars, varInfo)
+					}
+				}
+			}
+		} else if n.Tok == token.TYPE {
+			startPosition := f.FileSet.Position(n.Pos())
+			endPosition := f.FileSet.Position(n.End())
+			for _, spec := range n.Specs {
+				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+					structInfo := &StructInfo{
+						BaseAstInfo: BaseAstInfo{
+							Name:      typeSpec.Name.Name,
+							RFilePath: f.RFilePath,
+							Pkg:       f.Pkg,
+							Content:   string(f.FileBytes[n.Pos()-1 : n.End()-1]),
+						},
+						StartPosition: &BaseAstPosition{
+							RFilePath: f.RFilePath,
+							OffSet:    startPosition.Offset,
+							Line:      startPosition.Line,
+							Column:    startPosition.Column,
+						},
+						EndPosition: &BaseAstPosition{
+							RFilePath: f.RFilePath,
+							OffSet:    endPosition.Offset,
+							Line:      endPosition.Line,
+							Column:    endPosition.Column,
+						},
+					}
+					f.FileStructs = append(f.FileStructs, structInfo)
+				}
+			}
 		}
 	case *ast.FuncDecl:
-		startPosition := f.FileSet.Position(n.Pos())
-		endPosition := f.FileSet.Position(n.End())
-		funcInfo := &FuncInfo{
-			BaseAstInfo: BaseAstInfo{
-				Name:      n.Name.Name,
-				RFilePath: f.RFilePath,
-				Pkg:       f.Pkg,
-			},
-			StartPosition: &BaseAstPosition{
-				RFilePath: f.RFilePath,
-				OffSet:    startPosition.Offset,
-				Line:      startPosition.Line,
-				Column:    startPosition.Column,
-			},
-			EndPosition: &BaseAstPosition{
-				RFilePath: f.RFilePath,
-				OffSet:    endPosition.Offset,
-				Line:      endPosition.Line,
-				Column:    endPosition.Column,
-			},
-		}
+		funcInfo := f.parseNameFuncInfo(n)
 		f.FileFuncInfos = append(f.FileFuncInfos, funcInfo)
-		if n.Recv != nil {
-			f.handleFileList(n.Recv.List, func(varInfo *VarInfo) {
-				funcInfo.Receiver = varInfo
-			})
-		}
-		if n.Type.Params != nil {
-			f.handleFileList(n.Type.Params.List, func(varInfo *VarInfo) {
-				funcInfo.Params = append(funcInfo.Params, varInfo)
-			})
-		}
-		if n.Type.Results != nil {
-			f.handleFileList(n.Type.Results.List, func(varInfo *VarInfo) {
-				funcInfo.Results = append(funcInfo.Results, varInfo)
-			})
-		}
+		// 采集内部所有匿名函数
+		ast.Inspect(n.Body, func(node ast.Node) bool {
+			if node == nil {
+				return true
+			}
+			if funcLit, ok := node.(*ast.FuncLit); ok {
+				childFuncInfo := f.parseAnonymousFuncInfo(funcLit, funcInfo)
+				f.FileFuncInfos = append(f.FileFuncInfos, childFuncInfo)
+			}
+			return true
+		})
 	}
 	return f
+}
+
+func (f *FileFuncVisitor) parseAnonymousFuncInfo(funcLit *ast.FuncLit, parentFuncInfo *FuncInfo) *FuncInfo {
+	parentFuncInfo.ChildCounts++
+	startPosition := f.FileSet.Position(funcLit.Pos())
+	endPosition := f.FileSet.Position(funcLit.End())
+	funcInfo := &FuncInfo{
+		BaseAstInfo: BaseAstInfo{
+			Name:      fmt.Sprintf("%s$%d", parentFuncInfo.Name, parentFuncInfo.ChildCounts),
+			RFilePath: parentFuncInfo.RFilePath,
+			Pkg:       parentFuncInfo.Pkg,
+			Content:   string(f.FileBytes[startPosition.Offset:endPosition.Offset]),
+		},
+		StartPosition: &BaseAstPosition{
+			RFilePath: f.RFilePath,
+			OffSet:    startPosition.Offset,
+			Line:      startPosition.Line,
+			Column:    startPosition.Column,
+		},
+		EndPosition: &BaseAstPosition{
+			RFilePath: f.RFilePath,
+			OffSet:    endPosition.Offset,
+			Line:      endPosition.Line,
+			Column:    endPosition.Column,
+		},
+	}
+	if funcLit.Type.Params != nil {
+		f.handleFileList(funcLit.Type.Params.List, func(varInfo *VarInfo) {
+			funcInfo.Params = append(funcInfo.Params, varInfo)
+		})
+	}
+	if funcLit.Type.Results != nil {
+		f.handleFileList(funcLit.Type.Results.List, func(varInfo *VarInfo) {
+			funcInfo.Results = append(funcInfo.Results, varInfo)
+		})
+	}
+	return funcInfo
+}
+
+func (f *FileFuncVisitor) parseNameFuncInfo(funcDecl *ast.FuncDecl) *FuncInfo {
+	startPosition := f.FileSet.Position(funcDecl.Pos())
+	endPosition := f.FileSet.Position(funcDecl.End())
+	funcInfo := &FuncInfo{
+		BaseAstInfo: BaseAstInfo{
+			Name:      funcDecl.Name.Name,
+			RFilePath: f.RFilePath,
+			Pkg:       f.Pkg,
+			Content:   string(f.FileBytes[startPosition.Offset:endPosition.Offset]),
+		},
+		StartPosition: &BaseAstPosition{
+			RFilePath: f.RFilePath,
+			OffSet:    startPosition.Offset,
+			Line:      startPosition.Line,
+			Column:    startPosition.Column,
+		},
+		EndPosition: &BaseAstPosition{
+			RFilePath: f.RFilePath,
+			OffSet:    endPosition.Offset,
+			Line:      endPosition.Line,
+			Column:    endPosition.Column,
+		},
+	}
+	if funcDecl.Recv != nil {
+		f.handleFileList(funcDecl.Recv.List, func(varInfo *VarInfo) {
+			funcInfo.Receiver = varInfo
+		})
+	}
+	if funcDecl.Type.Params != nil {
+		f.handleFileList(funcDecl.Type.Params.List, func(varInfo *VarInfo) {
+			funcInfo.Params = append(funcInfo.Params, varInfo)
+		})
+	}
+	if funcDecl.Type.Results != nil {
+		f.handleFileList(funcDecl.Type.Results.List, func(varInfo *VarInfo) {
+			funcInfo.Results = append(funcInfo.Results, varInfo)
+		})
+	}
+	return funcInfo
 }
 
 func (f *FileFuncVisitor) handleFileList(list []*ast.Field, handleFunc func(varInfo *VarInfo)) {

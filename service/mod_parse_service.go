@@ -25,7 +25,6 @@ type ModuleInfo struct {
 	Replaces     []ReplaceRule // 替换规则
 	Imports      []string      // 导入的包（从.go文件中提取）
 	Error        error         // 解析过程中发生的错误
-	ModeFile     *modfile.File // 原始数据，不序列化
 	PkgFuncMap   map[string][]*vs.FuncInfo
 	PkgVarMap    map[string][]*vs.VarInfo
 	PkgStructMap map[string][]*vs.StructInfo
@@ -79,11 +78,10 @@ func ParseModule(dir string) (*ModuleInfo, error) {
 		return info, fmt.Errorf("解析go.mod失败: %v", err)
 	}
 	info.Path = modeFile.Module.Mod.Path
-	info.ModeFile = modeFile
 	if modeFile.Go != nil {
 		info.GoVersion = modeFile.Go.Version
 	}
-	// TODO 匹配mod文件中内容
+	// 匹配mod文件中内容
 	AppendModuleInfo(info)
 	// 解析依赖
 	for _, req := range modeFile.Require {
@@ -113,7 +111,6 @@ func ParseModule(dir string) (*ModuleInfo, error) {
 
 // AppendModuleInfo 解析模块中的所有.go文件
 func AppendModuleInfo(modInfo *ModuleInfo) {
-	// TODO 匹配mod文件中内容
 	filepath.Walk(modInfo.Dir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err

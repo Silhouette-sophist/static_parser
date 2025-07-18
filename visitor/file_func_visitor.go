@@ -89,7 +89,7 @@ func (f *FileFuncVisitor) Visit(node ast.Node) (w ast.Visitor) {
 		} else if n.Tok == token.CONST || n.Tok == token.VAR {
 			for _, spec := range n.Specs {
 				if valueSpec, ok := spec.(*ast.ValueSpec); ok {
-					for i, name := range valueSpec.Names {
+					for _, name := range valueSpec.Names {
 						varInfo := &VarInfo{
 							BaseAstInfo: BaseAstInfo{
 								Name:      name.Name,
@@ -97,7 +97,7 @@ func (f *FileFuncVisitor) Visit(node ast.Node) (w ast.Visitor) {
 								Pkg:       f.Pkg,
 								Content:   string(f.FileBytes[valueSpec.Pos()-1 : valueSpec.End()-1]),
 							},
-							Type: f.parseExprTypeInfo(valueSpec.Values[i]),
+							Type: f.parseExprTypeInfo(valueSpec.Type),
 						}
 						f.FilePkgVars = append(f.FilePkgVars, varInfo)
 					}

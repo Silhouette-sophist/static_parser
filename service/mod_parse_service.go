@@ -11,19 +11,23 @@ import (
 	"sort"
 	"strings"
 
+	vs "github.com/Silhouette-sophist/static_parser/visitor"
 	"golang.org/x/mod/modfile"
 )
 
 // ModuleInfo 表示一个Go模块的信息
 type ModuleInfo struct {
-	Path      string        // 模块路径
-	Dir       string        // 模块所在目录
-	GoVersion string        // Go版本
-	Requires  []Dependency  // 直接依赖
-	Replaces  []ReplaceRule // 替换规则
-	Imports   []string      // 导入的包（从.go文件中提取）
-	Error     error         // 解析过程中发生的错误
-	ModeFile  *modfile.File
+	Path         string        // 模块路径
+	Dir          string        // 模块所在目录
+	GoVersion    string        // Go版本
+	Requires     []Dependency  // 直接依赖
+	Replaces     []ReplaceRule // 替换规则
+	Imports      []string      // 导入的包（从.go文件中提取）
+	Error        error         // 解析过程中发生的错误
+	ModeFile     *modfile.File // 原始数据，不序列化
+	PkgFuncMap   map[string][]*vs.FuncInfo
+	PkgVarMap    map[string][]*vs.VarInfo
+	PkgStructMap map[string][]*vs.StructInfo
 }
 
 // Dependency 表示模块的依赖
@@ -41,7 +45,7 @@ type ReplaceRule struct {
 	NewVersion string // 新版本
 }
 
-func ParseRepo(repoPath string) ([]ModuleInfo, error) {
+func ParseRepo(repoPath string) ([]*ModuleInfo, error) {
 	modules, err := FindAllModules(repoPath)
 	if err != nil {
 		return nil, err
@@ -50,9 +54,12 @@ func ParseRepo(repoPath string) ([]ModuleInfo, error) {
 }
 
 // 解析单个go.mod文件
-func ParseModule(dir string) (ModuleInfo, error) {
-	info := ModuleInfo{
-		Dir: dir,
+func ParseModule(dir string) (*ModuleInfo, error) {
+	info := &ModuleInfo{
+		Dir:          dir,
+		PkgFuncMap:   make(map[string][]*vs.FuncInfo),
+		PkgVarMap:    make(map[string][]*vs.VarInfo),
+		PkgStructMap: make(map[string][]*vs.StructInfo),
 	}
 	// 读取go.mod文件
 	modPath := filepath.Join(dir, "go.mod")
@@ -70,6 +77,8 @@ func ParseModule(dir string) (ModuleInfo, error) {
 	if modeFile.Go != nil {
 		info.GoVersion = modeFile.Go.Version
 	}
+	// TODO 匹配mod文件中内容
+	ParseModuleInfo(info)
 	// 解析依赖
 	for _, req := range modeFile.Require {
 		info.Requires = append(info.Requires, Dependency{
@@ -94,6 +103,57 @@ func ParseModule(dir string) (ModuleInfo, error) {
 	}
 	info.Imports = imports
 	return info, nil
+}
+
+func ParseModuleInfo(modInfo *ModuleInfo) {
+	// TODO 匹配mod文件中内容
+	filepath.Walk(modInfo.Dir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(info.Name(), ".go") {
+			return nil
+		}
+		rFilePath, err := filepath.Rel(modInfo.Dir, path)
+		if err != nil {
+			return err
+		}
+		relDir, err := DeductRelativeDir(modInfo.Dir, path)
+		if err != nil {
+			return err
+		}
+		curPkg := modInfo.Path
+		if relDir != "" {
+			curPkg = modInfo.Path + "/" + relDir
+		}
+		fileFuncVisitor, err := ParseFileFunc(curPkg, rFilePath, path)
+		if err != nil {
+			return err
+		}
+		modInfo.PkgFuncMap[curPkg] = append(modInfo.PkgFuncMap[curPkg], fileFuncVisitor.FileFuncInfos...)
+		modInfo.PkgVarMap[curPkg] = append(modInfo.PkgVarMap[curPkg], fileFuncVisitor.FilePkgVars...)
+		modInfo.PkgStructMap[curPkg] = append(modInfo.PkgStructMap[curPkg], fileFuncVisitor.FileStructs...)
+		return nil
+	})
+}
+
+// DeductRelativeDir 计算子文件相对于父目录的目录路径（排除文件名）
+func DeductRelativeDir(parentDir, childPath string) (string, error) {
+	// 计算相对路径
+	relPath, err := filepath.Rel(parentDir, childPath)
+	if err != nil {
+		return "", err
+	}
+	// 排除文件名，只保留目录部分
+	dir := filepath.Dir(relPath)
+	// 如果结果是 "."，说明就在父目录下，返回空字符串
+	if dir == "." {
+		return "", nil
+	}
+	return dir, nil
 }
 
 // 从目录中的所有.go文件解析导入的包
@@ -124,8 +184,8 @@ func ParseImportsFromDir(dir string) ([]string, error) {
 }
 
 // 递归查找目录中的所有模块
-func FindAllModules(rootDir string) ([]ModuleInfo, error) {
-	modules := make([]ModuleInfo, 0)
+func FindAllModules(rootDir string) ([]*ModuleInfo, error) {
+	modules := make([]*ModuleInfo, 0)
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err

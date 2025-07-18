@@ -24,7 +24,7 @@ type FileVisitInfo struct {
 	FuncInfos []*vs.FuncInfo
 }
 
-func ParseFileFunc(filePath string) ([]*vs.FuncInfo, error) {
+func ParseFileFunc(curPkg, rFilePath, filePath string) (*vs.FileFuncVisitor, error) {
 	fileSet := token.NewFileSet()
 	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
@@ -34,11 +34,12 @@ func ParseFileFunc(filePath string) ([]*vs.FuncInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	fileName := filepath.Base(filePath)
 	fileFuncVisitor := &vs.FileFuncVisitor{
 		BaseAstInfo: vs.BaseAstInfo{
-			RFilePath: filePath,
-			Pkg:       "one",
-			Name:      "xxx",
+			RFilePath: rFilePath,
+			Pkg:       curPkg,
+			Name:      fileName,
 			Content:   string(fileBytes),
 		},
 		FileSet:      fileSet,
@@ -50,7 +51,7 @@ func ParseFileFunc(filePath string) ([]*vs.FuncInfo, error) {
 	sort.Slice(fileFuncVisitor.FileFuncInfos, func(i, j int) bool {
 		return fileFuncVisitor.FileFuncInfos[i].StartPosition.OffSet < fileFuncVisitor.FileFuncInfos[j].StartPosition.OffSet
 	})
-	return fileFuncVisitor.FileFuncInfos, nil
+	return fileFuncVisitor, nil
 }
 
 func ParseDirFunc(dirPath string) error {

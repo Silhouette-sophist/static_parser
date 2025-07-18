@@ -8,11 +8,11 @@ import (
 
 func main() {
 	// 需要先导入 service 包
-	funcInfos, err := service.ParseFileFunc("./service/ast_parse_service.go")
+	modules, err := service.ParseRepo("/Users/silhouette/codeworks/static_parser")
 	if err != nil {
 		panic(err)
 	}
-	for _, funcInfo := range funcInfos {
-		fmt.Println(funcInfo)
+	for _, module := range modules {
+		fmt.Println(module.Path)
 	}
 }

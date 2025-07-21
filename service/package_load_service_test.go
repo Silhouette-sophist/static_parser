@@ -20,3 +20,14 @@ func TestLoadPackages(t *testing.T) {
 		LoadEnum: LoadSpecificPkgWithChild,
 	})
 }
+
+func TestLoadAllPackages(t *testing.T) {
+	ctx := context.Background()
+	repoPath := "/Users/silhouette/codeworks/static_parser"
+	pkgPath := "github.com/Silhouette-sophist/static_parser/service"
+	LoadPackages(ctx, &LoadConfig{
+		RepoPath: repoPath,
+		PkgPath:  pkgPath,
+		LoadEnum: LoadAllPkg,
+	})
+}

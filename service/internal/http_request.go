@@ -13,8 +13,8 @@ var httpClient = http.Client{
 	Timeout: time.Second * 30,
 }
 
-// SendRequest 发送请求
-func SendRequest[T any](ctx context.Context, request *http.Request) (*T, error) {
+// SendHttpRequest 发送请求
+func SendHttpRequest[T any](ctx context.Context, request *http.Request) (*T, error) {
 	if request == nil {
 		return nil, fmt.Errorf("request is nil")
 	}

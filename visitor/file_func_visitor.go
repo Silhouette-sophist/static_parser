@@ -47,6 +47,7 @@ type FuncInfo struct {
 	StartPosition *BaseAstPosition
 	EndPosition   *BaseAstPosition
 	ChildCounts   int
+	RelatedPkgVar map[string]struct{}
 }
 
 type VarInfo struct {
@@ -145,14 +146,34 @@ func (f *FileFuncVisitor) Visit(node ast.Node) (w ast.Visitor) {
 			if node == nil {
 				return true
 			}
-			if funcLit, ok := node.(*ast.FuncLit); ok {
-				childFuncInfo := f.parseAnonymousFuncInfo(funcLit, funcInfo)
+			switch nd := node.(type) {
+			case *ast.FuncLit:
+				childFuncInfo := f.parseAnonymousFuncInfo(nd, funcInfo)
 				f.FileFuncInfos = append(f.FileFuncInfos, childFuncInfo)
+			case *ast.Ident:
+				// 判断是变量还是函数
+				if f.judgeNodeVar(nd) {
+					pkgVar := fmt.Sprintf("%s.%s", funcInfo.Pkg, nd.Name)
+					funcInfo.RelatedPkgVar[pkgVar] = struct{}{}
+				}
+			case *ast.SelectorExpr:
+				if f.judgeNodeVar(nd.Sel) {
+					if pkgIdent, ok := nd.X.(*ast.Ident); ok {
+						if pkgInfo, ok := f.ImportPkgMap[pkgIdent.Name]; ok {
+							selectorPkgVar := fmt.Sprintf("%s.%s", pkgInfo, nd.Sel.Name)
+							funcInfo.RelatedPkgVar[selectorPkgVar] = struct{}{}
+						}
+					}
+				}
 			}
 			return true
 		})
 	}
 	return f
+}
+
+func (f *FileFuncVisitor) judgeNodeVar(ident *ast.Ident) bool {
+	return true
 }
 
 func (f *FileFuncVisitor) parseAnonymousFuncInfo(funcLit *ast.FuncLit, parentFuncInfo *FuncInfo) *FuncInfo {
@@ -214,6 +235,7 @@ func (f *FileFuncVisitor) parseNameFuncInfo(funcDecl *ast.FuncDecl) *FuncInfo {
 			Line:      endPosition.Line,
 			Column:    endPosition.Column,
 		},
+		RelatedPkgVar: map[string]struct{}{},
 	}
 	if funcDecl.Recv != nil {
 		f.handleFileList(funcDecl.Recv.List, func(varInfo *VarInfo) {

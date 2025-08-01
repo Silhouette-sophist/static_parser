@@ -150,30 +150,35 @@ func (f *FileFuncVisitor) Visit(node ast.Node) (w ast.Visitor) {
 			case *ast.FuncLit:
 				childFuncInfo := f.parseAnonymousFuncInfo(nd, funcInfo)
 				f.FileFuncInfos = append(f.FileFuncInfos, childFuncInfo)
-			case *ast.Ident:
-				// 判断是变量还是函数
-				if f.judgeNodeVar(nd) {
-					pkgVar := fmt.Sprintf("%s.%s", funcInfo.Pkg, nd.Name)
-					funcInfo.RelatedPkgVar[pkgVar] = struct{}{}
-				}
-			case *ast.SelectorExpr:
-				if f.judgeNodeVar(nd.Sel) {
-					if pkgIdent, ok := nd.X.(*ast.Ident); ok {
-						if pkgInfo, ok := f.ImportPkgMap[pkgIdent.Name]; ok {
-							selectorPkgVar := fmt.Sprintf("%s.%s", pkgInfo, nd.Sel.Name)
-							funcInfo.RelatedPkgVar[selectorPkgVar] = struct{}{}
-						}
-					}
-				}
 			}
 			return true
 		})
+		for _, stmt := range n.Body.List {
+			funcCallMap := make(map[string]struct{})
+			ast.Inspect(stmt, func(node ast.Node) bool {
+				if node == nil {
+					return true
+				}
+				switch nd := node.(type) {
+				case *ast.CallExpr:
+					funcTypeInfo := f.parseExprTypeInfo(nd.Fun)
+					funcCallMap[funcTypeInfo] = struct{}{}
+				case *ast.Ident:
+					funcTypeInfo := f.parseExprTypeInfo(nd)
+					if _, ok := funcCallMap[funcTypeInfo]; !ok {
+						funcInfo.RelatedPkgVar[funcTypeInfo] = struct{}{}
+					}
+				case *ast.SelectorExpr:
+					funcTypeInfo := f.parseExprTypeInfo(nd)
+					if _, ok := funcCallMap[funcTypeInfo]; !ok {
+						funcInfo.RelatedPkgVar[funcTypeInfo] = struct{}{}
+					}
+				}
+				return true
+			})
+		}
 	}
 	return f
-}
-
-func (f *FileFuncVisitor) judgeNodeVar(ident *ast.Ident) bool {
-	return true
 }
 
 func (f *FileFuncVisitor) parseAnonymousFuncInfo(funcLit *ast.FuncLit, parentFuncInfo *FuncInfo) *FuncInfo {

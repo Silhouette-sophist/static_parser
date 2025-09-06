@@ -9,6 +9,9 @@ https://pkg.go.dev/go/ast
 ### treesitter
 https://github.com/tree-sitter/tree-sitter
 
+### abcoder
+https://github.com/cloudwego/abcoder
+
 ## 调用关系
 ### ssa采集
 https://pkg.go.dev/golang.org/x/tools/go/ssa
@@ -16,6 +19,9 @@ https://pkg.go.dev/golang.org/x/tools/go/ssa
 ### treesitter
 https://github.com/tree-sitter/go-tree-sitter
 
+### abcoder
+https://github.com/cloudwego/abcoder
+实际上是 ast+types
 
 ## 评估体系
 ### 准确性
@@ -42,3 +48,4 @@ ast > treesitter >> ssa
 - ast 满足语法要求
 - treesitter 满足语法要求
 - ssa 满足语法要求+可编译
+- abcoder 满足语法要求+可编译

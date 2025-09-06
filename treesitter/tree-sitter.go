@@ -63,11 +63,11 @@ func getLanguage(name string) *sitter.Language {
 
 通过这四步，可实现对任意语言代码的结构化分析，具体场景（如提取变量、注释、语法错误检查）只需调整节点类型匹配和信息提取逻辑即可。
 */
-func ParseTargetFile(ctx context.Context, filePath string) {
+func ParseTargetFile(ctx context.Context, filePath, langType string) {
 	parser := sitter.NewParser()
 	defer parser.Close()
 
-	if err := parser.SetLanguage(sitter.NewLanguage(tree_sitter_go.Language())); err != nil {
+	if err := parser.SetLanguage(getLanguage(langType)); err != nil {
 		zap_log.CtxError(ctx, "Failed to set language", err)
 	}
 

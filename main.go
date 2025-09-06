@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"log"
+	"time"
 
 	"github.com/Silhouette-sophist/static_parser/graphdb"
+	"github.com/Silhouette-sophist/static_parser/zap_log"
 )
 
 func main() {
@@ -15,19 +16,19 @@ func main() {
 		Password: "chen150928",            // 默认密码，如果你修改过请用新密码
 
 		// 连接池配置使用默认值即可，也可根据需要调整
-		// MaxConnectionPoolSize:        10,
-		// ConnectionAcquisitionTimeout: 60 * time.Second,
-		// MaxConnectionLifetime:        30 * time.Minute,
+		MaxConnectionPoolSize:        10,
+		ConnectionAcquisitionTimeout: 60 * time.Second,
+		MaxConnectionLifetime:        30 * time.Minute,
 	}
 
 	// 初始化全局客户端
 	background := context.Background()
 	if err := graphdb.InitGlobalClient(background, cfg); err != nil {
-		log.Fatalf("无法连接到 Neo4j: %v", err)
+		zap_log.CtxError(background, "无法连接到 Neo4j: %v", err)
 	}
 
 	// 初始化成功后即可使用客户端进行操作
-	log.Println("Neo4j 客户端初始化成功")
+	zap_log.CtxInfo(background, "Neo4j 客户端初始化成功")
 
 	if err := graphdb.NewRepoRepository(graphdb.GetGlobalClient()).Create(background, graphdb.Repo{
 		Name:        "test2",
@@ -35,12 +36,12 @@ func main() {
 		Summary:     "summary",
 		Description: "description",
 	}); err != nil {
-		log.Fatal(err)
+		zap_log.CtxError(background, "", err)
 	}
-	log.Println("Create success")
-	name, err := graphdb.NewRepoRepository(graphdb.GetGlobalClient()).GetByName(background, "test")
+	zap_log.CtxInfo(background, "Create success")
+	_, err := graphdb.NewRepoRepository(graphdb.GetGlobalClient()).GetByName(background, "test")
 	if err != nil {
-		log.Fatal(err)
+		zap_log.CtxError(background, "", err)
 	}
-	log.Println("Get success", name)
+	zap_log.CtxInfo(background, "Get success %v")
 }

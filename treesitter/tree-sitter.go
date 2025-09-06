@@ -1,9 +1,11 @@
 package treesitter
 
 import (
+	"context"
 	"fmt"
-	_ "sync/atomic"
+	"os"
 
+	"github.com/Silhouette-sophist/static_parser/zap_log"
 	. "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_c "github.com/tree-sitter/tree-sitter-c/bindings/go"
 	tree_sitter_cpp "github.com/tree-sitter/tree-sitter-cpp/bindings/go"
@@ -50,58 +52,27 @@ func getLanguage(name string) *Language {
 	}
 }
 
-func ExampleParser_Parse() {
+func ParseTargetFile(ctx context.Context, filePath string) {
 	parser := NewParser()
 	defer parser.Close()
 
-	language := NewLanguage(tree_sitter_go.Language())
-
-	parser.SetLanguage(language)
-
-	tree := parser.Parse(
-		[]byte(`
-			package main
-
-
-			func main() {
-				return
-			}
-		`),
-		nil,
-	)
-	defer tree.Close()
-
-	rootNode := tree.RootNode()
-	fmt.Println(rootNode.ToSexp())
-	// Output:
-	// (source_file (package_clause (package_identifier)) (function_declaration name: (identifier) parameters: (parameter_list) body: (block (return_statement))))
-}
-
-func ExampleParser_ParseWithOptions() {
-	parser := NewParser()
-	defer parser.Close()
-
-	language := NewLanguage(tree_sitter_go.Language())
-
-	parser.SetLanguage(language)
-
-	sourceCode := []byte(`
-			package main
-
-			func main() {
-				return
-			}
-	`)
-
-	readCallback := func(offset int, position Point) []byte {
-		return sourceCode[offset:]
+	if err := parser.SetLanguage(NewLanguage(tree_sitter_go.Language())); err != nil {
+		zap_log.CtxError(ctx, "Failed to set language", err)
 	}
 
-	tree := parser.ParseWithOptions(readCallback, nil, nil)
+	fileBytes, err := os.ReadFile(filePath)
+	if err != nil {
+		zap_log.CtxError(ctx, "Failed to ReadFile", err)
+	}
+
+	tree := parser.Parse(fileBytes, nil)
 	defer tree.Close()
 
 	rootNode := tree.RootNode()
-	fmt.Println(rootNode.ToSexp())
-	// Output:
-	// (source_file (package_clause (package_identifier)) (function_declaration name: (identifier) parameters: (parameter_list) body: (block (return_statement))))
+	childCount := rootNode.ChildCount()
+	for i := 0; i < int(childCount); i++ {
+		child := rootNode.Child(uint(i))
+		zap_log.CtxInfo(ctx, fmt.Sprintf("node %v %v %v", child.Id(), child.GrammarName(), child.Kind()))
+	}
+	zap_log.CtxInfo(ctx, "successfully parsed target file")
 }

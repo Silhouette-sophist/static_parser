@@ -23,11 +23,16 @@ type ModuleInfo struct {
 	GoVersion    string        // Go版本
 	Requires     []Dependency  // 直接依赖
 	Replaces     []ReplaceRule // 替换规则
-	Imports      []string      // 导入的包（从.go文件中提取）
+	Imports      []ImportInfo  // 导入的包（从.go文件中提取）
 	Error        error         // 解析过程中发生的错误
 	PkgFuncMap   map[string][]*vs.FuncInfo
 	PkgVarMap    map[string][]*vs.VarInfo
 	PkgStructMap map[string][]*vs.StructInfo
+}
+
+type ImportInfo struct {
+	Name *string
+	Path string
 }
 
 // Dependency 表示模块的依赖
@@ -160,9 +165,9 @@ func DeductRelativeDir(parentDir, childPath string) (string, error) {
 	return dir, nil
 }
 
-// 从目录中的所有.go文件解析导入的包
-func ParseImportsFromDir(dir string) ([]string, error) {
-	var imports []string
+// ParseImportsFromDir 从目录中的所有.go文件解析导入的包
+func ParseImportsFromDir(dir string) ([]ImportInfo, error) {
+	var imports []ImportInfo
 	fset := token.NewFileSet()
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -180,14 +185,21 @@ func ParseImportsFromDir(dir string) ([]string, error) {
 		// 提取导入
 		for _, imp := range file.Imports {
 			importPath := strings.Trim(imp.Path.Value, `"`)
-			imports = append(imports, importPath)
+			var importName *string
+			if imp.Name != nil {
+				importName = &imp.Name.Name
+			}
+			imports = append(imports, ImportInfo{
+				Path: importPath,
+				Name: importName,
+			})
 		}
 		return nil
 	})
 	return imports, err
 }
 
-// 递归查找目录中的所有模块
+// FindAllModules 递归查找目录中的所有模块
 func FindAllModules(rootDir string) ([]*ModuleInfo, error) {
 	modules := make([]*ModuleInfo, 0)
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {

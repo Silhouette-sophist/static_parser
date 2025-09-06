@@ -118,14 +118,6 @@ func GetGlobalClient() *Client {
 	return globalClient
 }
 
-// Repo 节点结构体
-type Repo struct {
-	Name        string
-	GitRepo     string
-	Description string
-	Summary     string
-}
-
 // RepoRepository Repo节点操作封装
 type RepoRepository struct {
 	client *Client
